@@ -244,7 +244,7 @@ pub fn proc_args(mut ctl: &mut EncloneControl, args: &Vec<String>) -> Result<(),
             for j in 0..i {
                 args2.push(args[j].clone());
             }
-            let f = include_str!["../../enclone/src/enclone.testdata.bcr.gex"];
+            let f = include_str!["enclone.testdata.bcr.gex"];
             let (mut bcrv, mut gexv) = (Vec::<String>::new(), Vec::<String>::new());
             for n in y.iter() {
                 if *n != "m1" {
