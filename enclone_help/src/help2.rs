@@ -3,7 +3,7 @@
 // Test for help request.
 
 use crate::help_utils::*;
-use enclone_core::defs::*;
+use enclone_core::defs::EncloneControl;
 use enclone_core::testlist::*;
 use itertools::Itertools;
 use string_utils::*;

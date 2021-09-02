@@ -12,7 +12,7 @@ use crate::flag_defective::*;
 use crate::inconsistent::*;
 use crate::populate_features::*;
 use crate::sec_mem::*;
-use crate::setup::*;
+use crate::setup::{process_source, setup};
 use crate::some_filters::*;
 use crate::stop::*;
 use crate::vars::*;

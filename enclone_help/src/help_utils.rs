@@ -2,7 +2,7 @@
 
 use ansi_escape::ansi_to_html::*;
 use ansi_escape::*;
-use enclone_core::print_tools::*;
+use enclone_core::print_tools::{emit_codon_color_escape, font_face_in_css};
 use io_utils::*;
 use std::io::Write;
 use string_utils::*;

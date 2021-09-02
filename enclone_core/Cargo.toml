@@ -16,6 +16,11 @@ edition = "2018"
 build = "build.rs"
 license-file = "../LICENSE.txt"
 publish = false
+repository = "https://github.com/10XGenomics/enclone"
+homepage = "https://10xgenomics.github.io/enclone"
+exclude = [
+    "src/testdata.*",
+]
 
 # Please do not edit crate versions within this file.  Instead edit the file master.toml
 # in the root of the enclone repo.
@@ -25,7 +30,7 @@ amino = "0.1"
 ansi_escape = "0.1"
 attohttpc = { version = "0.12", default-features = false, features = ["compress", "tls-rustls"] }
 bio = ">=0.35"
-bio_edit = { path = "../bio_edit" }
+bio_edit = { path = "../bio_edit", version = "*" }
 bytes = ">=0.5.5, <2"
 chrono = "0.4.19"
 debruijn = "0.3.2"

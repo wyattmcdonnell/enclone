@@ -14,6 +14,8 @@ authors = ["""David Jaffe <david.jaffe@10xgenomics.com>,
               Wyatt McDonnell <wyatt.mcdonnell@10xgenomics.com>"""]
 edition = "2018"
 license-file = "../LICENSE.txt"
+repository = "https://github.com/10XGenomics/enclone"
+homepage = "https://10xgenomics.github.io/enclone"
 publish = false
 
 # This crate is for preprocessing including argument processing and initial reading/testing of
