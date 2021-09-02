@@ -44,8 +44,11 @@ fn get_commit_hash() -> String {
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .unwrap();
-    assert!(output.status.success());
-    String::from_utf8_lossy(&output.stdout).to_string()
+    if output.status.success() {
+        String::from_utf8_lossy(&output.stdout).to_string()
+    } else {
+        "unknown".to_string()
+    }
 }
 
 fn is_github() -> bool {
@@ -77,10 +80,13 @@ fn get_branch_name() -> String {
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .unwrap();
-    assert!(output.status.success());
-    String::from_utf8_lossy(&output.stdout)
-        .trim_end()
-        .to_string()
+    if output.status.success() {
+        String::from_utf8_lossy(&output.stdout)
+            .trim_end()
+            .to_string()
+    } else {
+        "unknown".to_string()
+    }
 }
 
 fn is_working_tree_clean() -> bool {
