@@ -95,7 +95,7 @@ jobs:
           echo "$HOME/bin" >> $GITHUB_PATH
       - name: Check Rust formatting
         run: cargo fmt -- --check
-      - name: Deny duplicate dependencies (lib/rust)
+      - name: Deny duplicate dependencies
         run: cargo deny --locked check
       - name: Run clippy
         uses: actions-rs/clippy-check@v1
@@ -105,8 +105,8 @@ jobs:
           # a given action, so we're going to disable (for now!) some of the
           # noisier lints so that more important ones are more likely to be
           # visible.
-          # NOTE: keep this list in sync with lib/rust/.cargo/config, or else
-          #       which is ignored when running in this mode but not when
+          # NOTE: keep this list in sync with .cargo/config, or else
+          #       that is ignored when running in this mode but not when
           #       running locally.
           # TODO: re-enable the allowed lints at the end of this list.
           args: |
