@@ -10,6 +10,13 @@
 // enclone BCR=@test BUILT_IN CHAINS_EXACT=2 CHAINS=2 NOPRINT POUT=stdout PCELL ECHOC
 //         PCOLS=donors_cell,v_name1,v_name2,dref,cdr3_aa1,clonotype_ncells,const1,hcomp
 //         > per_cell_stuff
+//
+// Optional second argument: SHOW -- instead print data for pairs of cells from the same
+// donor at 100% identity with dref1 > 0 and dref2 > 0 and having the same light chain gene.
+// For this, the order of output lines is nondeterministic.
+// Designed for use with J option.
+//
+// Optional second argument: J.  Require different J genes rather than different V genes.
 
 use enclone_core::hcat;
 use io_utils::*;
@@ -17,7 +24,8 @@ use pretty_trace::PrettyTrace;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::env;
-use std::io::BufRead;
+use std::io::{BufRead, Write};
+use string_utils::strme;
 use string_utils::TextUtils;
 use tables::print_tabular_vbox;
 
@@ -25,9 +33,21 @@ fn main() {
     PrettyTrace::new().on();
     let args: Vec<String> = env::args().collect();
     let f = open_for_read![&args[1]];
+    let mut show = false;
+    let mut use_j = false;
+    for i in 2..args.len() {
+        if args[i] == "SHOW" {
+            show = true;
+        } else if args[i] == "J" {
+            use_j = true;
+        } else {
+            eprintln!("\nIllegal argument.\n");
+            std::process::exit(1);
+        }
+    }
     let mut first = true;
     let mut tof = HashMap::<String, usize>::new();
-    let mut data = Vec::<(String, usize, Vec<u8>, String, String, usize)>::new();
+    let mut data = Vec::new();
     for line in f.lines() {
         let s = line.unwrap();
         if s.starts_with("#") {
@@ -41,12 +61,17 @@ fn main() {
             first = false;
         } else {
             data.push((
-                fields[tof["donors_cell"]].to_string(),
-                fields[tof["cdr3_aa1"]].len(),
-                fields[tof["cdr3_aa1"]].to_string().as_bytes().to_vec(),
-                fields[tof["v_name1"]].to_string(),
-                fields[tof["v_name2"]].to_string(),
-                fields[tof["dref"]].force_usize(),
+                /* 0 */ fields[tof["donors_cell"]].to_string(),
+                /* 1 */ fields[tof["cdr3_aa1"]].len(),
+                /* 2 */ fields[tof["cdr3_aa1"]].to_string().as_bytes().to_vec(),
+                /* 3 */ fields[tof["v_name1"]].to_string(),
+                /* 4 */ fields[tof["v_name2"]].to_string(),
+                /* 5 */ fields[tof["dref"]].force_usize(),
+                /* 6 */ fields[tof["datasets_cell"]].to_string(),
+                /* 7 */ fields[tof["barcode"]].to_string(),
+                /* 8 */ fields[tof["j_name1"]].to_string(),
+                /* 9 */ fields[tof["fwr4_dna_ref1"]].to_string(),
+                /* 10 */ fields[tof["fwr4_dna1"]].to_string(),
             ));
         }
     }
@@ -89,9 +114,12 @@ fn main() {
         let d = data[i].0.after("d").force_usize() - 1;
         for k1 in i..j {
             for k2 in k1 + 1..j {
-                // Require different heavy chain V genes.
+                // Require different heavy chain V or J genes.
 
-                if data[k1].3 == data[k2].3 {
+                if !use_j && data[k1].3 == data[k2].3 {
+                    continue;
+                }
+                if use_j && data[k1].8 == data[k2].8 {
                     continue;
                 }
 
@@ -121,6 +149,69 @@ fn main() {
                     if eq_light {
                         res.2[d + 1][ident].2 += 1;
                         res.2[0][ident].2 += 1;
+                        if show && ident == 10 {
+                            println!(
+                                "\n{} {} {} {}",
+                                data[k1].6, data[k1].7, data[k2].6, data[k2].7
+                            );
+                            let mut ref1 = data[k1].9.as_bytes().to_vec();
+                            let mut ref2 = data[k2].9.as_bytes().to_vec();
+                            let mut seq1 = data[k1].10.as_bytes().to_vec();
+                            let mut seq2 = data[k2].10.as_bytes().to_vec();
+                            seq1 = seq1[0..seq1.len() - 1].to_vec();
+                            seq2 = seq2[0..seq2.len() - 1].to_vec();
+                            let n = 24;
+                            ref1 = ref1[ref1.len() - n..].to_vec();
+                            ref2 = ref2[ref2.len() - n..].to_vec();
+                            seq1 = seq1[seq1.len() - n..].to_vec();
+                            seq2 = seq2[seq2.len() - n..].to_vec();
+                            let mut refdiffs = 0;
+                            for i in 0..n {
+                                if ref1[i] == ref2[i] {
+                                    print!(" ");
+                                } else {
+                                    print!("*");
+                                    refdiffs += 1;
+                                }
+                            }
+                            let mut log = Vec::<u8>::new();
+                            fwriteln!(log, "\n{} ref1", strme(&ref1));
+                            fwriteln!(log, "{} ref2", strme(&ref2));
+                            fwriteln!(log, "{} seq1", strme(&seq1));
+                            fwriteln!(log, "{} seq2", strme(&seq2));
+                            let mut supp = 0;
+                            let mut sup1 = 0;
+                            let mut sup2 = 0;
+                            let mut other = 0;
+                            for i in 0..n {
+                                if ref1[i] != ref2[i] {
+                                    if seq1[i] == ref1[i] && seq2[i] == ref2[i] {
+                                        supp += 1;
+                                    } else if seq1[i] == ref1[i] && seq2[i] == ref1[i] {
+                                        sup1 += 1;
+                                    } else if seq1[i] == ref2[i] && seq2[i] == ref2[i] {
+                                        sup2 += 1;
+                                    } else {
+                                        other += 1;
+                                    }
+                                }
+                            }
+                            fwriteln!(log, "right = {supp}");
+                            fwriteln!(log, "wrong1 = {sup1}");
+                            fwriteln!(log, "wrong2 = {sup2}");
+                            fwriteln!(log, "dunno = {other}");
+                            fwrite!(log, "summary: ");
+                            if refdiffs == 0 {
+                                fwriteln!(log, "no reference differences");
+                            } else if supp > 0 && sup1 == 0 && sup2 == 0 {
+                                fwriteln!(log, "right > 0 and wrongs = 0");
+                            } else if supp == 0 && ((sup1 > 0) ^ (sup2 > 0)) {
+                                fwriteln!(log, "right = 0 and one wrong > 0");
+                            } else {
+                                fwriteln!(log, "other");
+                            }
+                            print!("{}", strme(&log));
+                        }
                     } else {
                         res.2[d + 1][ident].3 += 1;
                         res.2[0][ident].3 += 1;
@@ -129,6 +220,9 @@ fn main() {
             }
         }
     });
+    if show {
+        std::process::exit(0);
+    }
 
     // Sum.
 
@@ -158,6 +252,7 @@ fn main() {
         let mut rows = Vec::<Vec<String>>::new();
         let row = vec![
             "CDR3H-AA".to_string(),
+            "log10(cell pairs)".to_string(),
             "all".to_string(),
             "d1".to_string(),
             "d2".to_string(),
@@ -166,9 +261,15 @@ fn main() {
         ];
         rows.push(row);
         for j in 0..=10 {
-            let row = vec!["\\hline".to_string(); 6];
+            let row = vec!["\\hline".to_string(); 7];
             rows.push(row);
             let mut row = vec![format!("{}%", 10 * j)];
+            let n = if xpass == 1 {
+                res[0][j].2 + res[0][j].3
+            } else {
+                res[0][j].0 + res[0][j].1
+            };
+            row.push(format!("{:.1}", (n as f64).log10()));
             for pass in 0..5 {
                 if xpass == 1 {
                     let n = res[pass][j].2 + res[pass][j].3;
@@ -182,7 +283,7 @@ fn main() {
             }
             rows.push(row);
         }
-        print_tabular_vbox(&mut log, &rows, 0, &b"l|r|r|r|r|r".to_vec(), false, false);
+        print_tabular_vbox(&mut log, &rows, 0, &b"l|r|r|r|r|r|r".to_vec(), false, false);
         logs.push(log);
     }
     let mut logr = vec![Vec::<String>::new(); 2];
