@@ -37,8 +37,12 @@ part of a release.</p>
 
 <table rules="all" cellpadding="3" style="border: 1px solid black">
 
-<p><b>6/11/22</b>: Fix bug that caused the cvar <code>fwr4_dna_ref</code> to have its rightmost
-base removed.</p>
+<p><b>6/11/22</b>: 
+<ul>
+<li>Fix bug that caused the cvar <code>fwr4_dna_ref</code> to have its rightmost base removed.</li>
+<li>Add cvars for leader variables.</li>
+</ul>
+</p>
 
 <! –– ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ -->
 
