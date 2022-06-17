@@ -20,6 +20,7 @@
 // - SHOW: show information about each cell pair, and just for the 100% identity, equal
 //         light chain case
 // - MANY: work with many donors.
+// - SWITCH_AS_DREF: if class switching occurs and dref = 0, change to dref = 1.
 
 use enclone_core::hcat;
 use enclone_core::test_def::test_donor_id;
@@ -62,6 +63,7 @@ fn main() {
     let mut opt_solo = true;
     let mut opt_show = false;
     let mut opt_many = false;
+    let mut switch_as_dref = false;
     for i in 2..args.len() {
         if args[i] == "FLOW" {
             opt_flow = true;
@@ -77,6 +79,8 @@ fn main() {
             opt_show = true;
         } else if args[i] == "MANY" {
             opt_many = true;
+        } else if args[i] == "SWITCH_AS_DREF" {
+            switch_as_dref = true;
         }
     }
 
@@ -99,6 +103,7 @@ fn main() {
         j_name2: String,
         barcode: String,
         v_name2_orig: String,
+        const1: String,
     }
 
     // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
@@ -139,6 +144,7 @@ fn main() {
                     j_name2: fields[tof["j_name2"]].to_string(),
                     barcode: fields[tof["barcode"]].to_string(),
                     v_name2_orig: fields[tof["v_name2"]].to_string(),
+                    const1: fields[tof["const1"]].to_string(),
                 });
             } else {
                 data.push(CellData {
@@ -157,6 +163,7 @@ fn main() {
                     j_name2: fields[tof["j_name1"]].to_string(),
                     barcode: fields[tof["barcode"]].to_string(),
                     v_name2_orig: fields[tof["v_name1"]].to_string(),
+                    const1: fields[tof["const1"]].to_string(),
                 });
             }
             clonotype.push(fields[tof["group_id"]].force_usize());
@@ -177,13 +184,25 @@ fn main() {
         erase_if(&mut data, &to_delete);
     }
 
-    // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+    // Implement SWITCH_AS_DREF.
+
+    if switch_as_dref {
+        for i in 0..data.len() {
+            if data[i].dref == 0 {
+                if data[i].const1.starts_with("IGHA")
+                    || data[i].const1.starts_with("IGHD")
+                    || data[i].const1.starts_with("IGHE")
+                    || data[i].const1.starts_with("IGHG")
+                {
+                    data[i].dref = 1;
+                }
+            }
+        }
+    }
 
     // Sort.
 
     data.sort();
-
-    // ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
     // Replace paralogs.
 
