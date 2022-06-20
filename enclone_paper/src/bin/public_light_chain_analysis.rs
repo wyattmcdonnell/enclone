@@ -13,17 +13,19 @@
 //
 // Optional arguments:
 // - FLOW: compute using flow classification of naive/memory rather than dref
+// - FLOW_UNSWITCHED: same as flow but require memory to be sorted as unswitched
+// - FLOW_SWITCHED: same as flow but require memory to be sorted as switched
 // - NAIVE: compute just some stats about naive cells
 // - NO_PARALOGS: do not make paralogs equivalent
 // - REVERSE: reverse role of heavy and light
-// - NSOLO: use all cells in a clonotype, not just one
+// - SOLO: use just one cell in a clonotype
 // - SHOW: show information about each cell pair, and just for the 100% identity, equal
 //         light chain case
 // - MANY: work with many donors.
 // - SWITCH_AS_DREF: if class switching occurs and dref = 0, change to dref = 1.
 
-use enclone_core::hcat;
 use enclone_core::test_def::test_donor_id;
+use enclone_paper::public::*;
 use io_utils::*;
 use pretty_trace::PrettyTrace;
 use rayon::prelude::*;
@@ -60,21 +62,27 @@ fn main() {
     let mut opt_naive = false;
     let mut opt_no_paralogs = false;
     let mut opt_reverse = false;
-    let mut opt_solo = true;
+    let mut opt_solo = false;
     let mut opt_show = false;
     let mut opt_many = false;
+    let mut flow_unswitched = false;
+    let mut flow_switched = false;
     let mut switch_as_dref = false;
     for i in 2..args.len() {
         if args[i] == "FLOW" {
             opt_flow = true;
+        } else if args[i] == "FLOW_UNSWITCHED" {
+            flow_unswitched = true;
+        } else if args[i] == "FLOW_SWITCHED" {
+            flow_switched = true;
         } else if args[i] == "NAIVE" {
             opt_naive = true;
         } else if args[i] == "NO_PARALOGS" {
             opt_no_paralogs = true;
         } else if args[i] == "REVERSE" {
             opt_reverse = true;
-        } else if args[i] == "NSOLO" {
-            opt_solo = false;
+        } else if args[i] == "SOLO" {
+            opt_solo = true;
         } else if args[i] == "SHOW" {
             opt_show = true;
         } else if args[i] == "MANY" {
@@ -190,7 +198,6 @@ fn main() {
         for i in 0..data.len() {
             if data[i].dref == 0 {
                 if data[i].const1.starts_with("IGHA")
-                    || data[i].const1.starts_with("IGHD")
                     || data[i].const1.starts_with("IGHE")
                     || data[i].const1.starts_with("IGHG")
                 {
@@ -286,24 +293,29 @@ fn main() {
 
     let mut is_naive = vec![false; data.len()];
     let mut is_memory = vec![false; data.len()];
-    if (opt_naive || opt_flow) && !opt_many {
+    let mut is_unswitched_flow = vec![false; data.len()];
+    let mut is_switched_flow = vec![false; data.len()];
+    if (opt_naive || opt_flow || flow_unswitched || flow_switched) && !opt_many {
         let mut all = Vec::<usize>::new();
         all.append(&mut NAIVE.to_vec());
         all.append(&mut UNSWITCHED.to_vec());
         all.append(&mut SWITCHED.to_vec());
         all.append(&mut PLASMABLAST.to_vec());
         all.sort();
-        let mut naive = vec![(0, 0); 5];
-        let mut unswitched = vec![(0, 0); 5];
-        let mut switched = vec![(0, 0); 5];
-        let mut plasmablast = vec![(0, 0); 5];
-        let mut memory_subtotal = vec![(0, 0); 5];
-        let mut unswitched_naive = vec![(0, 0); 5];
-        let mut switched_naive = vec![(0, 0); 5];
-        let mut total = vec![(0, 0); 5];
+        let mut naive = vec![(0, 0, 0, 0); 5];
+        let mut unswitched = vec![(0, 0, 0, 0); 5];
+        let mut switched = vec![(0, 0, 0, 0); 5];
+        let mut plasmablast = vec![(0, 0, 0, 0); 5];
+        let mut memory_subtotal = vec![(0, 0, 0, 0); 5];
+        let mut unswitched_naive = vec![(0, 0, 0, 0); 5]; // THESE ARE MIXED!
+        let mut switched_naive = vec![(0, 0, 0, 0); 5]; // THESE ARE MIXED!
+        let mut total = vec![(0, 0, 0, 0); 5];
         let mut cells = vec![(0, 0); all.len()];
         for pass in 1..=2 {
             for i in 0..data.len() {
+                let c1 = &data[i].const1;
+                let is_switched =
+                    c1.starts_with("IGHA") || c1.starts_with("IGHE") || c1.starts_with("IGHG");
                 let dref = data[i].dref;
                 let dataset = data[i].dataset;
                 if pass == 1 && dataset.to_string().starts_with("128") {
@@ -324,6 +336,14 @@ fn main() {
                     total[0].0 += 1;
                     total[donor_id].0 += 1;
                 }
+                if dref == 0 && is_switched {
+                    total[0].2 += 1;
+                    total[donor_id].2 += 1;
+                }
+                if dref > 0 && is_switched {
+                    total[0].3 += 1;
+                    total[donor_id].3 += 1;
+                }
                 if NAIVE.contains(&dataset) {
                     naive[0].1 += 1;
                     naive[donor_id].1 += 1;
@@ -332,6 +352,14 @@ fn main() {
                         naive[0].0 += 1;
                         naive[donor_id].0 += 1;
                     }
+                    if dref == 0 && is_switched {
+                        naive[0].2 += 1;
+                        naive[donor_id].2 += 1;
+                    }
+                    if dref > 0 && is_switched {
+                        naive[0].3 += 1;
+                        naive[donor_id].3 += 1;
+                    }
                 } else if UNSWITCHED.contains(&dataset) {
                     if pass == 1 || donor_id == 1 {
                         unswitched[0].1 += 1;
@@ -339,6 +367,7 @@ fn main() {
                         memory_subtotal[0].1 += 1;
                         memory_subtotal[donor_id].1 += 1;
                         is_memory[i] = true;
+                        is_unswitched_flow[i] = true;
                     } else {
                         unswitched_naive[0].1 += 1;
                         unswitched_naive[donor_id].1 += 1;
@@ -354,6 +383,28 @@ fn main() {
                             unswitched_naive[donor_id].0 += 1;
                         }
                     }
+                    if dref == 0 && is_switched {
+                        if pass == 1 || donor_id == 1 {
+                            unswitched[0].2 += 1;
+                            unswitched[donor_id].2 += 1;
+                            memory_subtotal[0].2 += 1;
+                            memory_subtotal[donor_id].2 += 1;
+                        } else {
+                            unswitched_naive[0].2 += 1;
+                            unswitched_naive[donor_id].2 += 1;
+                        }
+                    }
+                    if dref > 0 && is_switched {
+                        if pass == 1 || donor_id == 1 {
+                            unswitched[0].3 += 1;
+                            unswitched[donor_id].3 += 1;
+                            memory_subtotal[0].3 += 1;
+                            memory_subtotal[donor_id].3 += 1;
+                        } else {
+                            unswitched_naive[0].3 += 1;
+                            unswitched_naive[donor_id].3 += 1;
+                        }
+                    }
                 } else if SWITCHED.contains(&dataset) {
                     if pass == 1 {
                         switched[0].1 += 1;
@@ -361,6 +412,7 @@ fn main() {
                         memory_subtotal[0].1 += 1;
                         memory_subtotal[donor_id].1 += 1;
                         is_memory[i] = true;
+                        is_switched_flow[i] = true;
                     } else {
                         switched_naive[0].1 += 1;
                         switched_naive[donor_id].1 += 1;
@@ -376,6 +428,28 @@ fn main() {
                             switched_naive[donor_id].0 += 1;
                         }
                     }
+                    if dref == 0 && is_switched {
+                        if pass == 1 {
+                            switched[0].2 += 1;
+                            switched[donor_id].2 += 1;
+                            memory_subtotal[0].2 += 1;
+                            memory_subtotal[donor_id].2 += 1;
+                        } else {
+                            switched_naive[0].2 += 1;
+                            switched_naive[donor_id].2 += 1;
+                        }
+                    }
+                    if dref > 0 && is_switched {
+                        if pass == 1 {
+                            switched[0].3 += 1;
+                            switched[donor_id].3 += 1;
+                            memory_subtotal[0].3 += 1;
+                            memory_subtotal[donor_id].3 += 1;
+                        } else {
+                            switched_naive[0].3 += 1;
+                            switched_naive[donor_id].3 += 1;
+                        }
+                    }
                 } else if PLASMABLAST.contains(&dataset) {
                     plasmablast[0].1 += 1;
                     plasmablast[donor_id].1 += 1;
@@ -387,6 +461,18 @@ fn main() {
                         plasmablast[donor_id].0 += 1;
                         memory_subtotal[0].0 += 1;
                         memory_subtotal[donor_id].0 += 1;
+                    }
+                    if dref == 0 && is_switched {
+                        plasmablast[0].2 += 1;
+                        plasmablast[donor_id].2 += 1;
+                        memory_subtotal[0].2 += 1;
+                        memory_subtotal[donor_id].2 += 1;
+                    }
+                    if dref > 0 && is_switched {
+                        plasmablast[0].3 += 1;
+                        plasmablast[donor_id].3 += 1;
+                        memory_subtotal[0].3 += 1;
+                        memory_subtotal[donor_id].3 += 1;
                     }
                 } else {
                     panic!("unclassified dataset");
@@ -442,6 +528,43 @@ fn main() {
             let mut log = String::new();
             print_tabular_vbox(&mut log, &rows, 0, &b"l|r|r|r|r|r".to_vec(), false, false);
             println!("{}", log);
+
+            println!("naive switched cells");
+            let mut rows = vec![row1.clone()];
+            for i in 0..counts.len() {
+                rows.push(vec!["\\hline".to_string(); 6]);
+                let mut row = vec![names[i].to_string()];
+                for j in 0..5 {
+                    if counts[i][j].1 > 0 {
+                        row.push(format!("{}", add_commas(counts[i][j].2),));
+                    } else {
+                        row.push(String::new());
+                    }
+                }
+                rows.push(row);
+            }
+            let mut log = String::new();
+            print_tabular_vbox(&mut log, &rows, 0, &b"l|r|r|r|r|r".to_vec(), false, false);
+            println!("{}", log);
+
+            println!("memory switched cells");
+            let mut rows = vec![row1.clone()];
+            for i in 0..counts.len() {
+                rows.push(vec!["\\hline".to_string(); 6]);
+                let mut row = vec![names[i].to_string()];
+                for j in 0..5 {
+                    if counts[i][j].1 > 0 {
+                        row.push(format!("{}", add_commas(counts[i][j].3),));
+                    } else {
+                        row.push(String::new());
+                    }
+                }
+                rows.push(row);
+            }
+            let mut log = String::new();
+            print_tabular_vbox(&mut log, &rows, 0, &b"l|r|r|r|r|r".to_vec(), false, false);
+            println!("{}", log);
+
             println!("naive cell fractions");
             let mut rows = vec![row1.clone()];
             for i in 0..counts.len() {
@@ -462,6 +585,7 @@ fn main() {
             let mut log = String::new();
             print_tabular_vbox(&mut log, &rows, 0, &b"l|r|r|r|r|r".to_vec(), false, false);
             println!("{}", log);
+
             std::process::exit(0);
         }
     }
@@ -679,6 +803,14 @@ fn main() {
                         naive = is_naive[k1] && is_naive[k2];
                         memory = is_memory[k1] && is_memory[k2];
                     }
+                    if flow_unswitched {
+                        naive = is_naive[k1] && is_naive[k2];
+                        memory = is_unswitched_flow[k1] && is_unswitched_flow[k2];
+                    }
+                    if flow_switched {
+                        naive = is_naive[k1] && is_naive[k2];
+                        memory = is_switched_flow[k1] && is_switched_flow[k2];
+                    }
                     if naive {
                         cells[pass][ident].0.push(k1);
                         cells[pass][ident].0.push(k2);
@@ -731,198 +863,5 @@ fn main() {
 
     // Print results.
 
-    println!(
-        "\nConsider two cells from different donors that have the same heavy chain gene name \
-        and CDRH3 length."
-    );
-    println!("\nColumn 1: percent identity rounded down to nearest ten percent");
-    println!("Column > 1: probability that light chain gene names are the same");
-    let mut logs = Vec::<String>::new();
-    for xpass in 1..=2 {
-        let mut log = String::new();
-        let mut rows = Vec::<Vec<String>>::new();
-        let mut row = vec![
-            "CDRH3-AA".to_string(),
-            "log10(cell pairs)".to_string(),
-            "any".to_string(),
-        ];
-        if !opt_many {
-            row.append(&mut vec![
-                "d1,d2".to_string(),
-                "d1,d3".to_string(),
-                "d1,d4".to_string(),
-                "d2,d3".to_string(),
-                "d2,d4".to_string(),
-                "d3,d4".to_string(),
-            ]);
-        }
-        rows.push(row);
-        for j in 0..=10 {
-            let mut cols = 9;
-            if opt_many {
-                cols = 3;
-            }
-            let row = vec!["\\hline".to_string(); cols];
-            rows.push(row);
-            let mut row = vec![format!("{}%", 10 * j)];
-            let n = if xpass == 1 {
-                res[0][j].2 + res[0][j].3
-            } else {
-                res[0][j].0 + res[0][j].1
-            };
-            row.push(format!("{:.1}", (n as f64).log10()));
-            for pass in 0..7 {
-                if opt_many && pass == 1 {
-                    break;
-                }
-                if xpass == 1 {
-                    let n = res[pass][j].2 + res[pass][j].3;
-                    let nznz = 100.0 * res[pass][j].2 as f64 / n as f64;
-                    row.push(format!("{nznz:.1}%"));
-                } else {
-                    let n = res[pass][j].0 + res[pass][j].1;
-                    let nznz = 100.0 * res[pass][j].0 as f64 / n as f64;
-                    row.push(format!("{nznz:.1}%"));
-                }
-            }
-            rows.push(row);
-        }
-        let mut just = b"l|r|r|r|r|r|r|r|r".to_vec();
-        if opt_many {
-            just = b"l|r|r".to_vec();
-        }
-        print_tabular_vbox(&mut log, &rows, 0, &just, false, false);
-        logs.push(log);
-    }
-    let mut logr = vec![Vec::<String>::new(); 2];
-    for xpass in 0..2 {
-        let r = logs[xpass].split('\n').map(str::to_owned).collect();
-        logr[xpass] = r;
-    }
-    print!("\n both cells have dref > 0");
-    if !opt_many {
-        print!("                                                 ");
-    } else {
-        print!("             ");
-    }
-    println!("both cells have dref = 0");
-    let r = hcat(&logr[0], &logr[1], 3);
-    for i in 0..r.len() {
-        println!("{}", r[i]);
-    }
-
-    // Print tables showing cell pair counts.
-
-    if opt_many {
-        std::process::exit(0);
-    }
-    println!("Cell pair counts:");
-    let mut logs = Vec::<String>::new();
-    for xpass in 1..=2 {
-        let mut log = String::new();
-        let mut rows = Vec::<Vec<String>>::new();
-        let row = vec![
-            "CDRH3-AA".to_string(),
-            "any".to_string(),
-            "d1,d2".to_string(),
-            "d1,d3".to_string(),
-            "d1,d4".to_string(),
-            "d2,d3".to_string(),
-            "d2,d4".to_string(),
-            "d3,d4".to_string(),
-        ];
-        rows.push(row);
-        for j in 0..=10 {
-            let row = vec!["\\hline".to_string(); 8];
-            rows.push(row);
-            let mut row = vec![format!("{}%", 10 * j)];
-            for pass in 0..7 {
-                if xpass == 1 {
-                    let n = res[pass][j].2 + res[pass][j].3;
-                    row.push(format!("{:.1}", (n as f64).log10()));
-                } else {
-                    let n = res[pass][j].0 + res[pass][j].1;
-                    row.push(format!("{:.1}", (n as f64).log10()));
-                }
-            }
-            rows.push(row);
-        }
-        print_tabular_vbox(
-            &mut log,
-            &rows,
-            0,
-            &b"l|r|r|r|r|r|r|r".to_vec(),
-            false,
-            false,
-        );
-        logs.push(log);
-    }
-    let mut logr = vec![Vec::<String>::new(); 2];
-    for xpass in 0..2 {
-        let r = logs[xpass].split('\n').map(str::to_owned).collect();
-        logr[xpass] = r;
-    }
-    print!("\n both cells have dref > 0");
-    print!("                            ");
-    println!("both cells have dref = 0");
-    let r = hcat(&logr[0], &logr[1], 3);
-    for i in 0..r.len() {
-        println!("{}", r[i]);
-    }
-
-    // Print tables showing cell counts.
-
-    println!("Cell counts:");
-    let mut logs = Vec::<String>::new();
-    for xpass in 1..=2 {
-        let mut log = String::new();
-        let mut rows = Vec::<Vec<String>>::new();
-        let row = vec![
-            "CDRH3-AA".to_string(),
-            "any".to_string(),
-            "d1,d2".to_string(),
-            "d1,d3".to_string(),
-            "d1,d4".to_string(),
-            "d2,d3".to_string(),
-            "d2,d4".to_string(),
-            "d3,d4".to_string(),
-        ];
-        rows.push(row);
-        for j in 0..=10 {
-            let row = vec!["\\hline".to_string(); 8];
-            rows.push(row);
-            let mut row = vec![format!("{}%", 10 * j)];
-            for pass in 0..7 {
-                if xpass == 1 {
-                    let n = res_cell[pass][j].1;
-                    row.push(format!("{:.1}", (n as f64).log10()));
-                } else {
-                    let n = res_cell[pass][j].0;
-                    row.push(format!("{:.1}", (n as f64).log10()));
-                }
-            }
-            rows.push(row);
-        }
-        print_tabular_vbox(
-            &mut log,
-            &rows,
-            0,
-            &b"l|r|r|r|r|r|r|r".to_vec(),
-            false,
-            false,
-        );
-        logs.push(log);
-    }
-    let mut logr = vec![Vec::<String>::new(); 2];
-    for xpass in 0..2 {
-        let r = logs[xpass].split('\n').map(str::to_owned).collect();
-        logr[xpass] = r;
-    }
-    print!("\n both cells have dref > 0");
-    print!("                            ");
-    println!("both cells have dref = 0");
-    let r = hcat(&logr[0], &logr[1], 3);
-    for i in 0..r.len() {
-        println!("{}", r[i]);
-    }
+    public_print_results(&res, &res_cell, opt_many);
 }
