@@ -6,7 +6,10 @@
 // cases such as 1 amino acid different out of 10, which should be 90% identity.  This can be
 // broken because of floating point arithmetic.
 //
-// Usage: light_chain_coherence per_cell_stuff
+// Usage: light_chain_coherence per_cell_stuff <option args>
+//
+// Option args:
+// - DONORS=donor-list e.g. DONORS=1,2 to use only donors 1 and 2.
 //
 // Data from:
 //
@@ -63,6 +66,13 @@ fn main() {
     let mut randme = rand_chacha::ChaCha8Rng::seed_from_u64(123456789);
     let args: Vec<String> = env::args().collect();
     let f = open_for_read![&args[1]];
+    let mut donors = Vec::<usize>::new();
+    if args.len() >= 3 {
+        let d = args[2].after("DONORS=").split(',').collect::<Vec<&str>>();
+        for i in 0..d.len() {
+            donors.push(d[i].force_usize());
+        }
+    }
     let mut first = true;
     let mut tof = HashMap::<String, usize>::new();
     let mut data = Vec::<(String, usize, Vec<u8>, String, String, usize)>::new();
@@ -76,20 +86,22 @@ fn main() {
             for i in 0..fields.len() {
                 tof.insert(fields[i].to_string(), i);
             }
-            assert!(tof.contains_key("donors_cell"));
-            assert!(tof.contains_key("v_name1"));
-            assert!(tof.contains_key("v_name2"));
-            assert!(tof.contains_key("dref"));
-            assert!(tof.contains_key("cdr3_aa1"));
             first = false;
         } else {
             let dref = fields[tof["dref"]].force_usize();
+            let donor = fields[tof["donors_cell"]].to_string();
+            if donors.len() > 0 {
+                let d = donor.after("d").force_usize();
+                if !donors.contains(&d) {
+                    continue;
+                }
+            }
             if dref > 0 {
                 data.push((
                     fields[tof["v_name1"]].to_string(),
                     fields[tof["cdr3_aa1"]].len(),
                     fields[tof["cdr3_aa1"]].to_string().as_bytes().to_vec(),
-                    fields[tof["donors_cell"]].to_string(),
+                    donor,
                     fields[tof["v_name2"]].to_string(),
                     fields[tof["dref"]].force_usize(),
                 ));
