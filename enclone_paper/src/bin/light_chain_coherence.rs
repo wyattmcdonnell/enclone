@@ -10,6 +10,8 @@
 //
 // Option args:
 // - DONORS=donor-list e.g. DONORS=1,2 to use only donors 1 and 2.
+// - INITIAL=matrix-file to start with the given matrix
+// - LOCK: don't allow initial light chain coherence to be decreased.
 //
 // Data from:
 //
@@ -45,6 +47,7 @@
 // W 4.6 8.0 8.0 8.0 0.4 1.0 5.7 6.4 0.1 0.6 0.5 1.0 8.0 0.7 8.0 8.0 8.0 0.7 0.0 0.7
 // Y 0.7 0.2 0.8 8.0 0.5 1.4 0.3 0.6 0.1 0.5 0.6 0.6 8.0 0.5 1.2 0.5 1.0 0.5 0.7 0.0
 
+use enclone_paper::*;
 use io_utils::*;
 use perf_stats::elapsed;
 use pretty_trace::PrettyTrace;
@@ -67,12 +70,37 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let f = open_for_read![&args[1]];
     let mut donors = Vec::<usize>::new();
-    if args.len() >= 3 {
-        let d = args[2].after("DONORS=").split(',').collect::<Vec<&str>>();
-        for i in 0..d.len() {
-            donors.push(d[i].force_usize());
+    let mut penalty_file = String::new();
+    let mut lock = false;
+    for i in 2..args.len() {
+        if args[i] == "LOCK" {
+            lock = true;
+        } else if args[i].starts_with("DONORS=") {
+            let d = args[i].after("DONORS=").split(',').collect::<Vec<&str>>();
+            for i in 0..d.len() {
+                donors.push(d[i].force_usize());
+            }
+        } else if args[i].starts_with("INITIAL=") {
+            penalty_file = args[i].after("INITIAL=").to_string();
+        } else {
+            eprintln!("\nUnrecognized argument.\n");
+            std::process::exit(1);
         }
     }
+
+    // Define penalty matrix.
+
+    let mut penalty = vec![vec![1.0; 20]; 20];
+    for i in 0..20 {
+        penalty[i][i] = 0.0;
+    }
+    if penalty_file.len() > 0 {
+        let m = std::fs::read_to_string(&penalty_file).unwrap();
+        penalty = unpack_aa_matrix_string(&m);
+    }
+
+    // Keep going.
+
     let mut first = true;
     let mut tof = HashMap::<String, usize>::new();
     let mut data = Vec::<(String, usize, Vec<u8>, String, String, usize)>::new();
@@ -152,13 +180,6 @@ fn main() {
         data[i].2 = x;
     }
 
-    // Define penalty matrix.
-
-    let mut penalty = vec![vec![1.0; 20]; 20];
-    for i in 0..20 {
-        penalty[i][i] = 0.0;
-    }
-
     // Define groups based on equal heavy chain gene names and CDR3H length.
     // Plus placeholder for results, see next.
 
@@ -211,6 +232,7 @@ fn main() {
     let mut best_n = 0;
     let mut canonical_n = 0;
     let mut changed = false;
+    let mut nznz0 = 0.0;
     for count in 1.. {
         if count % 10000 == 0 {
             println!(
@@ -301,22 +323,31 @@ fn main() {
         // Print.
 
         let n = res.0 + res.1;
+        let nznz = 100.0 * res.0 as f64 / n as f64;
         if count == 1 {
             canonical_n = n;
+            if lock {
+                nznz0 = nznz;
+            } else {
+                nznz0 = nznz.min(75.0);
+            }
         }
-        let nznz = 100.0 * res.0 as f64 / n as f64;
-        if n > best_n && nznz >= 75.0 {
+        if n > best_n && nznz >= nznz0 {
             changed = true;
-            if count > 1 {
-                let nrel = n as f64 / canonical_n as f64;
-                print!("count = {count}, nrel = {nrel:.4}, light chain coherence = {nznz:.1}%");
-                println!(", used {:.1} minutes", elapsed(&t) / 60.0);
+            let nrel = n as f64 / canonical_n as f64;
+            print!(
+                "count = {count}, nrel = {nrel:.4}, n = {n}, \
+                light chain coherence = {nznz:.1}%"
+            );
+            println!(", used {:.1} minutes", elapsed(&t) / 60.0);
+            if nznz > nznz0 && !lock {
+                nznz0 = nznz.min(75.0);
             }
             best_n = n;
         } else {
             penalty = penalty_save;
         }
-        if count % 500 == 0 && changed {
+        if (count % 500 == 0 && changed) || count == 1 {
             changed = false;
             let mut rows = Vec::<Vec<String>>::new();
             let mut row = Vec::<String>::new();
