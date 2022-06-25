@@ -265,6 +265,7 @@ pub struct GeneralOpt {
     pub session_name: String,
     pub state_narrative: String,
     pub session_narrative: String,
+    pub log_nonproductive: bool,
 }
 
 // Some plot options.  Note that plot options are not allowed to affect intermediate computation.
