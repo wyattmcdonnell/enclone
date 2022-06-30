@@ -5,6 +5,8 @@
 // Analyze light chains.  Supply a single file of data, with one line per cell, and fields
 // including donors_cell,v_name1,v_name2,dref,cdr3_aa1.
 //
+// Note that this computation is CUMULATIVE.
+//
 // Data from:
 //
 // enclone BCR=@test BUILT_IN CHAINS_EXACT=2 CHAINS=2 NOPRINT POUT=stdout PCELL ECHOC

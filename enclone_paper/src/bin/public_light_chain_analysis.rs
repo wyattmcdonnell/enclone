@@ -113,7 +113,7 @@ fn main() {
         jun_sub: usize,
         hcomp: usize,
         jun_ins: usize,
-        dataset: usize,
+        dataset: String,
         d1_name1: String,
         j_name2: String,
         barcode: String,
@@ -154,7 +154,7 @@ fn main() {
                     jun_sub: fields[tof["jun_sub"]].force_usize(),
                     hcomp: fields[tof["hcomp"]].force_usize(),
                     jun_ins: fields[tof["jun_ins"]].force_usize(),
-                    dataset: fields[tof["datasets_cell"]].force_usize(),
+                    dataset: fields[tof["datasets_cell"]].to_string(),
                     d1_name1: fields[tof["d1_name1"]].to_string(),
                     j_name2: fields[tof["j_name2"]].to_string(),
                     barcode: fields[tof["barcode"]].to_string(),
@@ -173,7 +173,7 @@ fn main() {
                     jun_sub: fields[tof["jun_sub"]].force_usize(),
                     hcomp: fields[tof["hcomp"]].force_usize(),
                     jun_ins: fields[tof["jun_ins"]].force_usize(),
-                    dataset: fields[tof["datasets_cell"]].force_usize(),
+                    dataset: fields[tof["datasets_cell"]].to_string(),
                     d1_name1: fields[tof["d1_name1"]].to_string(),
                     j_name2: fields[tof["j_name1"]].to_string(),
                     barcode: fields[tof["barcode"]].to_string(),
@@ -340,7 +340,7 @@ fn main() {
                 let is_switched =
                     c1.starts_with("IGHA") || c1.starts_with("IGHE") || c1.starts_with("IGHG");
                 let dref = data[i].dref;
-                let dataset = data[i].dataset;
+                let dataset = data[i].dataset.force_usize();
                 if pass == 1 && dataset.to_string().starts_with("128") {
                     continue;
                 }
